@@ -1,154 +1,132 @@
-# 🚢 Chokepoint Variance — What the Red Sea Closure Actually Cost
+# 🚢 Chokepoint Variance — Measuring a Disruption That Mostly Wasn't There
 
 ![Data](https://img.shields.io/badge/DATA-IMF%20PortWatch-1f3864)
 ![Rows](https://img.shields.io/badge/ROWS-77%2C784-blue)
 ![Span](https://img.shields.io/badge/2019--2026-7.6%20years-green)
 ![Method](https://img.shields.io/badge/METHOD-Event%20Study-orange)
-![Status](https://img.shields.io/badge/STATUS-Descriptive-lightgrey)
+![Result](https://img.shields.io/badge/RESULT-Null%20after%20adjustment-red)
 
-**Everyone measured the Red Sea disruption in extra days. The real damage was to schedule *reliability* — and it landed on the route ships abandoned, not the one they moved to.**
+**When the Red Sea closed, container traffic through Bab el-Mandeb became 81% more
+erratic. Most of that turned out to be an artifact of having 66% less data to
+measure.**
 
----
-
-## 🎯 Headline Result
-
-In December 2023, major carriers suspended Red Sea transits and rerouted Asia–Europe
-traffic around the Cape of Good Hope. Transit volumes are the obvious story. This
-project measures something else: **how erratic the flow became**, using the
-coefficient of variation (rolling σ / rolling μ) of daily transit counts.
-
-| Chokepoint | Role | Container CV ratio | Direction |
-|---|---|---|---|
-| **Bab el-Mandeb** | abandoned route | **1.81** (2.76 weekly) | 🔴 far less predictable |
-| **Suez Canal** | abandoned route | **1.40** (1.59 weekly) | 🔴 less predictable |
-| **Cape of Good Hope** | the reroute | **0.77** (0.94 weekly) | 🟢 *more* predictable |
-| **Panama Canal** | unrelated disruption | 0.95 | ⚪ no container effect |
-| **Malacca Strait** | control | 0.85 | ⚪ no effect |
-
-> CV ratio = mean post-event CV ÷ mean pre-event CV. Above 1 = more erratic.
-
-**The Cape absorbed a near-quadrupling of container traffic and became *more*
-regular while doing it.** That is the counterintuitive part, and it is not what
-the coverage reported.
+This repo documents both the apparent effect and the check that dissolved it.
 
 ---
 
-## 🔬 The Discriminating Test
+## 🎯 What Actually Happened
 
-If this were measurement noise — AIS spoofing, dark vessels, transponders off in a
-conflict zone — it would hit every vessel type equally. It doesn't.
-
-| Chokepoint | 📦 Container | 🛢️ Tanker | ⛏️ Dry bulk |
-|---|---|---|---|
-| Bab el-Mandeb | **1.81** | 1.29 | 1.18 |
-| Suez Canal | **1.40** | 1.07 | 0.99 |
-| Cape of Good Hope | 0.77 | 0.85 | 0.84 |
-| Panama Canal | 0.95 | 1.04 | **1.31** |
-| Malacca Strait | 0.85 | 0.86 | 0.91 |
-
-Two things fall out of this table.
-
-**The gradient follows scheduling.** Container lines run fixed weekly rotations.
-Tankers move on spot charters. Dry bulk sits between. The CV response orders itself
-the same way — container > tanker > dry bulk — at *both* disrupted chokepoints.
-
-**Panama shows the opposite signature.** Its 2023–24 disruption was drought-driven
-draft restrictions and transit slot auctions, which bite bulk carriers, not liner
-services. Container 0.95, dry bulk 1.31. A contemporaneous disruption with a
-different mechanism produces a different fingerprint — which rules out "any
-disruption raises variance everywhere."
-
----
-
-## 📉 What Happened to Volume
+In December 2023 major carriers suspended Red Sea transits and rerouted Asia–Europe
+traffic around the Cape of Good Hope. The volume shift is unambiguous:
 
 ```
 Suez Canal          75 → 42 transits/day      ▼ 44%
 Bab el-Mandeb       78 → 40 transits/day      ▼ 49%
 Cape of Good Hope   50 → 95 transits/day      ▲ 90%
-Malacca Strait     183 → 227 transits/day     ▬ flat (upstream of the split)
+Malacca Strait     183 → 227 transits/day     ▬ flat
 ```
 
-Malacca sits upstream of the Suez/Cape decision point on the Asia–Europe route.
-It didn't move. **Trade rerouted; it did not disappear.**
+Malacca sits upstream of the Suez/Cape decision point on the same trade lane. It
+didn't move. **Trade rerouted; it did not disappear.**
 
 ---
 
-## 🧪 Robustness
+## 📉 The Apparent Finding
 
-The container effect at Bab el-Mandeb is not an artifact of window length:
+Measuring predictability as the coefficient of variation (rolling σ / rolling μ) of
+daily transit counts, container traffic looked dramatically more erratic on the
+abandoned route:
 
-| Rolling window | 14d | 28d | 56d | 91d |
-|---|---|---|---|---|
-| CV ratio | 1.810 | 1.808 | 1.831 | 1.860 |
+| Chokepoint | Container CV ratio | Reading |
+|---|---|---|
+| Bab el-Mandeb | **1.81** | far less predictable |
+| Suez Canal | **1.40** | less predictable |
+| Cape of Good Hope | 0.77 | *more* predictable |
+| Panama Canal | 0.95 | no effect |
+| Malacca Strait | 0.85 | no effect |
 
-And it **strengthens** under weekly aggregation (2.76), where counts are ~40/week
-rather than ~6/day. That matters: if the effect were Poisson noise from thin daily
-counts, aggregating up would dampen it. It does the opposite — meaning the swing is
-week-to-week, not day-to-day jitter. Consistent with convoy timing and carrier
-suspend/resume decisions rather than arrival noise.
+It survived every robustness check thrown at it. Window length made no difference
+(14/28/56/91-day → 1.810/1.808/1.831/1.860). Weekly aggregation made it *stronger*
+(2.76). Against all 28 chokepoints it ranked first.
 
-Against all 28 chokepoints, Bab el-Mandeb's total-transit CV ratio (1.435) ranks
-**3rd of 28** (mean 1.117, median 1.033, σ 0.250). The two above it — Kerch Strait
-(1.99) and Strait of Hormuz (1.66) — are both conflict-affected, which is
-informative rather than reassuring. See limitations.
-
----
-
-## 🗺️ Method
-
-```mermaid
-graph TB
-    A[IMF PortWatch daily chokepoint transits] --> B[28 chokepoints, 2019-2026]
-    B --> C[Rolling CV = std/mean per chokepoint]
-    C --> D[Split at 2023-12-15]
-    D --> E[Ratio = post CV / pre CV]
-    E --> F[Vessel-type breakdown]
-    E --> G[Window robustness 14/28/56/91d]
-    E --> H[Weekly aggregation check]
-    F --> I[Container > Tanker > Dry bulk]
-    G --> I
-    H --> I
-    I --> J[Schedule collapse, not measurement noise]
-```
-
-**Event date:** 2023-12-15, when major carriers publicly announced Red Sea
-suspension. The first vessel seizure was 2023-11-19; the later date is used because
-it marks the fleet-wide operational decision rather than the triggering incident.
-Results are not sensitive to which is chosen.
-
-**Controls:** Malacca Strait (same trade lane, upstream of the reroute decision) and
-Panama Canal (contemporaneous disruption, different mechanism, no conflict).
+The story wrote itself: container lines run fixed schedules, tankers run spot
+charters, so a schedule-destroying disruption should hit containers hardest — and
+the vessel-type ordering matched (container 1.81 > tanker 1.29 > dry bulk 1.18).
 
 ---
 
-## ⚠️ Limitations
+## ⚠️ The Check That Killed It
 
-Stated plainly, because they are the first things a careful reader will raise.
+A CV estimated on ~6 observations per day is mechanically noisier than one estimated
+on ~17 per day. Bab el-Mandeb's container traffic fell from 17.1/day to 5.9/day.
 
-**AIS data quality in conflict zones.** PortWatch documents GPS jamming, AIS
-spoofing, and vessels going dark in the Red Sea and around Hormuz. Degraded
-reporting would inflate measured variance without any change in real shipping
-behaviour. The vessel-type gradient argues against this — spoofing does not
-distinguish a boxship from a tanker — but it does not eliminate it.
+**So a traffic collapse manufactures the exact signal being tested for.**
 
-**Small post-period counts.** Bab el-Mandeb container transits fell from 17.1 to
-5.9 per day. CV on counts that low is unstable. The weekly-aggregation check
-(counts ~40) is the response to this, and the effect survives it, but the daily
-figure should be read with that in mind.
+Regressing log(CV ratio) on log(post_n / pre_n) across 18 chokepoints:
 
-**Malacca has a known break.** PortWatch expanded receiver coverage in 2021, causing
-a documented step change in recorded Malacca calls. It is used here as a qualitative
-confirmation that trade rerouted, not as a quantitative control.
+| | |
+|---|---|
+| correlation | **−0.723** |
+| slope | −0.371 |
+| **R²** | **0.522** |
 
-**These are descriptive statistics, not inference.** Ratios of means, no standard
-errors, no significance test. A permutation test over the 28-chokepoint null is the
-next step. Until then, "1.81" is an estimate without a confidence interval.
+Sample size explains more than half the cross-chokepoint variance in CV ratios.
 
-**Publisher restates history.** PortWatch revises past data when methodology changes
-— vessel classification expanded from 2 to 5 categories in 2024 (backfilled),
-boundaries refined, AIS spoofing checks added in 2026. Reproducing these numbers
-requires the same data vintage.
+Ranking on the residuals — what's left after accounting for observation count:
+
+| Chokepoint | Raw CV ratio | n ratio | Residual |
+|---|---|---|---|
+| Taiwan Strait | 1.163 | 1.046 | **+0.172** |
+| Luzon Strait | 0.992 | 1.341 | **+0.139** |
+| Dover Strait | 1.038 | 1.037 | +0.054 |
+| Windward Passage | 0.997 | 1.112 | +0.050 |
+| **Bab el-Mandeb** | **1.808** | **0.342** | **+0.049** |
+| Tsugaru Strait | 1.010 | 1.033 | +0.025 |
+| Panama Canal | 0.949 | 1.070 | −0.020 |
+| … | | | |
+
+**Bab el-Mandeb falls from rank 1 to rank 5 of 13, z = 0.52.** Taiwan and Luzon
+Straits — neither disrupted, neither conflict-affected — show larger unexplained
+CV increases.
+
+> **Conclusion: after adjusting for observation count, the Red Sea disruption's
+> effect on container transit variance is not distinguishable from background.**
+
+The vessel-type gradient is also unresolved. The three types lost traffic at
+different rates, so differential sample-size loss is an untested rival explanation
+for the ordering. It is *not* claimed as a finding here.
+
+---
+
+## 🧭 What This Is Worth
+
+The null result is the deliverable. Three things it demonstrates:
+
+**A plausible mechanism is not evidence.** The scheduling story fit the data,
+survived four robustness checks, and was wrong. Window invariance and aggregation
+stability test whether an estimate is *stable* — neither tests whether it's
+*confounded*.
+
+**The confound was visible in the output all along.** Sort the results by CV ratio
+and by sample-size change and you get nearly the same ordering. It took explicitly
+regressing one on the other to see it.
+
+**Small-n inference has a hard floor.** With 28 chokepoints and ~13 usable as a
+clean null, the smallest empirical p obtainable is 1/(n+1) = 0.071. A permutation
+test here can never reach 0.05 regardless of effect size, which is why the residual
+rank and z-score carry the inferential weight rather than the p-value.
+
+---
+
+## 🔍 Open Leads
+
+| Lead | Why it's interesting |
+|---|---|
+| **Cape of Good Hope**, residual +0.167, rank 2 | It *gained* traffic and still shows excess variance. Opposite direction — not explicable by thin data. Possibly the real finding. |
+| **Strait of Hormuz**, residual +0.489, largest | Consistent with AIS degradation (documented GPS jamming) rather than shipping behaviour. Would help characterise measurement error directly. |
+| **Subsample-matched test** | Thin each pre-period to its own post-period n, 500 draws, rank on median. More convincing than regression adjustment. Not yet run. |
+| **Ever Given, March 2021** | Visible in the series. A disruption with a known answer — method validation. |
+| **Port-level data** (2,065 ports) | Untouched. Did arrival clustering propagate into port congestion? |
 
 ---
 
@@ -164,9 +142,33 @@ Calls and Trade Volume Estimates. Satellite AIS on ~90,000 vessels.
 | Range | 2019-01-01 → 2026-08-09 |
 | Grain | one row per chokepoint per day |
 | Vessel types | container, dry bulk, general cargo, ro-ro, tanker |
-| Retrieved | 2026-08-18 (data vintage 2026-08-11) |
+| Retrieved | 2026-08-18 (vintage 2026-08-11) |
 
-Raw data is gitignored. Download it from the link above into `raw/`.
+Raw data is gitignored — download from the link into `raw/`.
+
+**Reproducibility caveat:** PortWatch restates history when methodology changes.
+Vessel classification expanded from 2 to 5 categories in 2024 (backfilled),
+boundaries have been refined, AIS spoofing checks added in 2026. Reproducing these
+numbers requires the same vintage.
+
+---
+
+## ⚠️ Other Limitations
+
+**Conflict-zone data quality.** PortWatch documents GPS jamming, AIS spoofing, and
+dark vessels in the Red Sea and around Hormuz. Degraded reporting inflates measured
+variance independently of shipping behaviour. This is a second confound, separate
+from sample size, and it is not addressed here.
+
+**Malacca has a known break.** Receiver coverage expanded in 2021, causing a
+documented step change. Used as qualitative confirmation that trade rerouted, not
+as a quantitative control.
+
+**Suez and Cape are not independent comparators.** They are the same shock's other
+half and are excluded from the clean null.
+
+**Event date.** 2023-12-15, when carriers announced suspension. First vessel seizure
+was 2023-11-19. Results are not sensitive to the choice.
 
 ---
 
@@ -174,23 +176,16 @@ Raw data is gitignored. Download it from the link above into `raw/`.
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate          # Windows
-pip install pandas matplotlib
+.venv\Scripts\activate
+pip install pandas numpy matplotlib
 
 python scripts/explore.py           # schema, date range, integrity check
-python scripts/plot_chokepoints.py  # transit volumes, 4 chokepoints
-python scripts/plot_cv.py           # rolling CV, 4 chokepoints
+python scripts/plot_chokepoints.py  # transit volumes
+python scripts/plot_cv.py           # rolling CV
 python scripts/cv_all.py            # vessel-type CV ratios
 python scripts/cv_robust.py         # window + weekly aggregation checks
+python scripts/rank_test.py         # permutation rank (superseded — p is floored)
+python scripts/confound_check.py    # ← the one that matters
 ```
 
 Outputs land in `outputs/figures/` and `outputs/tables/`.
-
----
-
-## 🧭 Next
-
-- [ ] Permutation test over the 28-chokepoint null → p-value for the container effect
-- [ ] Port-level analysis: did arrival clustering propagate into European port congestion?
-- [ ] Ever Given (March 2021) as a method validation — a disruption with a known answer
-- [ ] Separate the AIS-degradation hypothesis using capacity vs count divergence
