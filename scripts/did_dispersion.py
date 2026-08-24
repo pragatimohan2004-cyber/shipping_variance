@@ -34,12 +34,19 @@ has the common component already removed.
 
 Two-way fixed effects are applied by within-transformation (Frisch-Waugh)
 rather than dummy variables, so this needs only numpy and pandas.
+
+Source. Runs from the raw CSV by default, or from the Postgres views with
+--db. The SQL computes the same rolling dispersion (validated to 1.5e-14) and
+both paths apply the same sample filters, so the two agree.
 """
 
+import os
 import sys
 
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 CSV = "raw/Daily_Chokepoints_Data.csv"
 EVENT = pd.Timestamp("2023-12-15")
@@ -48,6 +55,7 @@ WINDOW = 28
 MIN_DAILY = 3.0
 COL = "n_container"
 MIN_MONTHS = 12
+MIN_DAYS_IN_MONTH = 20   # mirrors HAVING COUNT(*) >= 20 in the SQL panel view
 
 TREATED = ["Bab el-Mandeb Strait"]
 # Not valid controls: same shock's other half, or independently compromised.
@@ -90,13 +98,18 @@ def build_panel(df):
         w["month"] = pd.to_datetime(w["date"]).values.astype("datetime64[M]")
 
         g = w.groupby("month").agg(
-            {**{e: "mean" for e in ESTIMATORS}, "n": "mean"}
-        ).reset_index()
+            {**{e: "mean" for e in ESTIMATORS}, "n": "mean", "date": "size"}
+        ).rename(columns={"date": "days"}).reset_index()
         g["chokepoint"] = name
         rows.append(g)
 
     p = pd.concat(rows, ignore_index=True)
     p = p[p["month"] >= np.datetime64(PANEL_START, "M")]
+    # Drop part-months at the series edges. The data ends mid-month, so the
+    # final month would otherwise be built from ~9 days and given the same
+    # weight as a full one - a noisy estimate that inflates the treated
+    # coefficient. Matches HAVING COUNT(*) >= 20 in sql/04_panel_view.sql.
+    p = p[p["days"] >= MIN_DAYS_IN_MONTH]
     p = p[(p[ESTIMATORS] > 0).all(axis=1) & (p["n"] > 0)].copy()
 
     keep = p.groupby("chokepoint")["month"].nunique()
@@ -139,10 +152,34 @@ def twfe(panel, y_col, treated_names):
     return coef[0], coef[1]
 
 
-def main(path, treated=None):
-    df = pd.read_csv(path, encoding="utf-8-sig")
-    df["date"] = pd.to_datetime(df["date"])
-    panel = build_panel(df)
+def panel_from_db():
+    """
+    Read the monthly panel from Postgres instead of recomputing from CSV.
+
+    The rolling dispersion is already computed by sql/03_dispersion_view.sql,
+    validated against the Python implementation to 1.5e-14. The SQL view is
+    deliberately unfiltered - it keeps every chokepoint - so the MIN_DAILY and
+    MIN_MONTHS filters that build_panel() applies are re-applied here, giving
+    an identical analysis sample from either source.
+    """
+    from db import read_panel
+
+    p = read_panel(start=PANEL_START)
+    p = p.rename(columns={"d_raw": "D_raw", "d_resid": "D_resid",
+                          "d_weekly": "D_weekly"})
+    p = p[(p[ESTIMATORS] > 0).all(axis=1) & (p["n"] >= MIN_DAILY)].copy()
+    keep = p.groupby("chokepoint")["month"].nunique()
+    p = p[p["chokepoint"].isin(keep[keep >= MIN_MONTHS].index)]
+    return p.reset_index(drop=True)
+
+
+def main(path, treated=None, source="csv"):
+    if source == "db":
+        panel = panel_from_db()
+    else:
+        df = pd.read_csv(path, encoding="utf-8-sig")
+        df["date"] = pd.to_datetime(df["date"])
+        panel = build_panel(df)
 
     treated = treated or TREATED
     cps = sorted(panel["chokepoint"].unique())
@@ -158,6 +195,7 @@ def main(path, treated=None):
     print(f"  treated     {', '.join(treated)}")
     print(f"  controls    {len(controls)} (excluded: {len(excl)} shock/conflict)")
     print(f"  spec        log D ~ chokepoint FE + month FE + treat + log n")
+    print(f"  source      {'postgres (sql views)' if source == 'db' else path}")
 
     usable = panel[panel["chokepoint"].isin(controls + treated)]
 
@@ -213,7 +251,6 @@ def main(path, treated=None):
                 pre_part = chunk[chunk["month"] < ev_m]
                 post_part = chunk[chunk["month"] >= ev_m]
                 if len(pre_part) and len(post_part):
-                    b0, _ = twfe(pd.concat([pre, pre_part.assign(_p=1)]), est, treated)
                     b1, _ = twfe(pd.concat([pre, post_part]), est, treated)
                     if np.isfinite(b1):
                         parts.append(f"{yr}(post): {b1:+.2f}")
@@ -232,7 +269,8 @@ def main(path, treated=None):
             pp = usable[usable["month"] < ev_m].copy()
             if len(pp):
                 d = pp.copy()
-                d["y"] = np.log(d[est]); d["logn"] = np.log(d["n"])
+                d["y"] = np.log(d[est])
+                d["logn"] = np.log(d["n"])
                 d["treat"] = (d["chokepoint"].isin(treated)
                               & (d["month"] >= fake)).astype(float)
                 if d["treat"].nunique() > 1:
@@ -263,9 +301,12 @@ def main(path, treated=None):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    tr = None
+    tr, src_mode = None, "csv"
     if "--treated" in args:
         i = args.index("--treated")
         tr = [args[i + 1]]
         del args[i:i + 2]
-    main(args[0] if args else CSV, tr)
+    if "--db" in args:
+        args.remove("--db")
+        src_mode = "db"
+    main(args[0] if args else CSV, tr, src_mode)
